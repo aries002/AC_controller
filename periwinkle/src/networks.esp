@@ -1,0 +1,28 @@
+bool wifi_ap_setup(){
+  String msg;
+  if (wifi_ap_pass != NULL)
+  {
+    msg = "AP password" + String(wifi_ap_pass);
+    Log(msg,3);
+  }
+  if(!WiFi.softAP(wifi_ap_ssid, wifi_ap_pass)){
+    Log("AP Setup Failed!!", 1);
+    return false;
+  }else{
+    Log("AP setup successfully.", 3);
+    return true;
+  }
+  return false;
+}
+
+bool wifi_cl_connect(){
+  return false;
+}
+
+bool wifi_cl_reconnect(){
+  return false;
+}
+
+void wifi_check(){
+  
+}

@@ -1,0 +1,61 @@
+unsigned long breath_speed = 10;
+int b_led_step = 0;
+unsigned long b_last_time = 0;
+bool b_sts = false;
+int b_max_step =1020;
+
+void breathe(int led = LED_BUILTIN){
+  //interval delay untuk setiap berapa kali langkah diambil
+    if(uptime - b_last_time > breath_speed){
+        if(b_sts){
+            b_led_step = b_led_step - 10;
+        }else{
+            b_led_step = b_led_step + 10;
+        }
+        if(b_led_step < 2){
+            b_sts = false;
+        }else if (b_led_step > b_max_step){
+            b_sts = true;
+        }
+        analogWrite(led, b_led_step);
+        b_last_time = uptime;
+    }
+}
+
+void ICACHE_FLASH_ATTR Log(String msg = "", int level = 3){
+    Serial.print('[');
+    Serial.print(uptime);
+    Serial.print(']');
+    switch (level)
+    {
+    case 0:
+        Serial.print("[error  ] ");
+        break;
+    case 1:
+        Serial.print("[warning] ");
+        break;
+    case 2:
+        Serial.print("[info   ] ");
+        break;
+    case 3:
+        Serial.print("[debug  ] ");
+        break;
+    case 11:
+        Serial.print("[       ] Wifi Ip Address : ");
+        Serial.print(WiFi.localIP());
+    default:
+        Serial.print("[       ] ");
+        break;
+    }
+    Serial.println(msg);
+}
+
+String ICACHE_FLASH_ATTR get_device_id(){
+    return "";
+}
+
+String ICACHE_FLASH_ATTR gen_mqtt_clientid(){
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    return clientId;
+}

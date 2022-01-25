@@ -1,0 +1,55 @@
+/*
+program dan konfig untuk perangkat AC Controller
+perangkat ini digunakan untuk memantau kondisi AC dan ruangan. serta untuk mengendalikan AC yang ada.
+perangakat yang digunakan
+- Wemos D1 Mini (mikro controllernya)
+- pzem 004 v3.0 100 A
+- sensor suhu shtc3
+- digital input untuk status AC
+- digital sensor output menggunakan relay
+
+ppenggunaan port
+- gpio 5 (D1) = SCL
+- gpio 4 (D2) = SDA
+- gpio 0 (D3) = output signal untuk power AC (harus pullup untuk kebutuhan booting)
+- gpio 14 (D5) = untuk tx sensor pzem
+- gpio 12 (D6) = untuk rx sensor pzem
+- gpio 13 (D7) = untuk input sinyal AC (kondisi pulldown)
+*/
+
+//=====================================SYSTEM CONFIGURATION===============================
+#define I2C_SCL 5
+#define I2C_SDA 4
+#define PZEM_RX 12
+#define PZEM_TX 14
+#define AC_POWER_PIN 0
+#define AC_STATUS_PIN 13
+#define STATUS_PIN 2
+
+#define AC_READ_TIMEOUT 3000
+#define SENSOR_UPDATE_INTERVAL 3000
+#define CONTROLLER_UPDATE_INTERVAL 6000
+#define AC_CONTOLLLER_RUN_INTERVAL 1 //in minute
+#define AC_POWER_SIGNAL_LONG 1000
+
+#define TOKEN "1234567"
+#define DEVICE_NAME "AC_Controller"
+#define CONTROLLER_HOST "192.168.1.1"
+#define CONTROLLER_TOKEN "1234567890"
+
+//====================================WEBSOCKET CONFIGURATION=============================
+/*
+*/
+//Web socket and API port
+#define HTTP_PORT 8080
+#define API_PATH "/api"
+#define WEBSOCKET_PATH "/ws"
+#define API_ERROR_HEADER "{\"message\"="
+#define API_ERROR_FOOTER "}"
+#define API_DATA_TYPE "application/json"
+//=====================================NETWORK CONFIGURATION==============================
+#define WIFI_SSID "AC-Controller"
+#define WIFI_PASS "1234567890"
+#define WIFI_FAIL_PASS "1234567890"
+#define WIFI_MODE false
+

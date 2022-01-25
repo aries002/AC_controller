@@ -4,7 +4,9 @@ unsigned long b_last_time = 0;
 bool b_sts = false;
 int b_max_step =1020;
 
-void breathe(int led = LED_BUILTIN){
+
+//membuat efek bernafas pada LED tanpa memblokir proses apapun
+void IRAM_ATTR breathe(int led = LED_BUILTIN){
   //interval delay untuk setiap berapa kali langkah diambil
     if(uptime - b_last_time > breath_speed){
         if(b_sts){
@@ -22,9 +24,16 @@ void breathe(int led = LED_BUILTIN){
     }
 }
 
+//membuat format Log untuk serial print
+//level =
+//0 error
+//1 warning
+//2 info
+//3 debug (default)
 void ICACHE_FLASH_ATTR Log(String msg = "", int level = 3){
+    
     Serial.print('[');
-    Serial.print(uptime);
+    Serial.print(millis());
     Serial.print(']');
     switch (level)
     {
@@ -50,12 +59,22 @@ void ICACHE_FLASH_ATTR Log(String msg = "", int level = 3){
     Serial.println(msg);
 }
 
-String ICACHE_FLASH_ATTR get_device_id(){
-    return "";
+//mengambil dan mengolah id perangkat
+String ICACHE_FLASH_ATTR gen_device_id(){
+    return String(ESP.getChipId(),HEX).c_str();
+}
+
+//membuat dan memformat nama perangkat
+String ICACHE_FLASH_ATTR gen_device_name(){
+    String name;
+    // name += gen_device_id();
+    const char * dev_id = strdup(gen_device_id().c_str());
+    name = strcat(DEVICE_NAME"-", dev_id);
+    return name;
 }
 
 String ICACHE_FLASH_ATTR gen_mqtt_clientid(){
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
+    String clientId = DEVICE_NAME"-";
+    clientId += gen_device_id();
     return clientId;
 }

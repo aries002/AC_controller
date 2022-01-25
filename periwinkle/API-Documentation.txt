@@ -1,0 +1,11 @@
+1. /api/
+metode : GET
+variabel yang dibutuhkan :
+    token
+respon :
+    tipe : application/json
+    isi : {}
+
+2. /api/config
+metode : POST
+variabel :

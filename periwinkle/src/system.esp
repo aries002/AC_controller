@@ -1,0 +1,133 @@
+
+bool ICACHE_FLASH_ATTR config_load_system(){
+  
+  if(!LittleFS.exists("/system.json")){
+    Log("Controller configuration not exist");
+    return false;
+  }
+  File config = LittleFS.open("/system.json","r");
+  DynamicJsonBuffer buffer;
+  JsonObject& root = buffer.parseObject(config);
+  if(!root.success()){
+    Log("Error while prsing controller config file.",0);
+    return false;
+  }
+  String proc_token = root["token"];
+  token = strdup(proc_token.c_str());
+  String proc_controller_host = root["controller_host"];
+  controller_host = strdup(proc_controller_host.c_str());
+  String proc_controller_token = root["controller_token"];
+  controller_token = strdup(proc_controller_token.c_str());
+  Log("System configuration loaded",2);
+  return true;
+}
+
+bool ICACHE_FLASH_ATTR config_load_network(){
+  if(!LittleFS.exists("/networks.json")){
+    Log("Network configuration not exist");
+    return false;
+  }
+  File config = LittleFS.open("/networks.json","r");
+  // DynamicJsonDocument doc(200);
+  DynamicJsonBuffer buffer;
+  JsonObject& root = buffer.parseObject(config);
+  if(!root.success()){
+    Log("Error while prsing network config file.",0);
+    return false;
+  } 
+  // String proc_wifi_ap_ssid = root["wifi_ap_ssid"];
+  // wifi_ap_ssid = strdup(proc_wifi_ap_ssid.c_str());
+  // String proc_wifi_ap_pass = root["wifi_ap_pass"];
+  // wifi_ap_pass = strdup(proc_wifi_ap_pass.c_str());
+
+  String proc_wifi_ssid = root["wifi_ssid"];
+  wifi_ssid = strdup(proc_wifi_ssid.c_str());
+  String proc_wifi_pass = root["wifi_pass"];
+  wifi_pass = strdup(proc_wifi_pass.c_str());
+
+  if(root["wifi_mode"] == true || root["wifi_mode"] == "root"){
+    wifi_mode = true;
+  }else{
+    wifi_mode = false;
+  }
+  // String proc_wifi_mode = root["wifi_mode"];
+  // wifi_mode = strdup(proc_wifi_mode.c_str());
+
+  // String proc_wifi_ap_ssid = root["wifi_ap_ssid"];
+  // wifi_ap_ssid = strdup(proc_wifi_ap_ssid.c_str());
+  Log("Network configuration loaded",2);
+  return true;
+}
+
+
+// void ICACHE_RAM_ATTR data_sender(){
+//   // StaticJsonBuffer<512> statis_json_buffer;
+//   // JsonObject root = statis_json_buffer.createObject();
+// }
+
+void ICACHE_FLASH_ATTR reset_config(){
+  Log("Resetting configuration",2);
+  if(LittleFS.format()){
+    Log("File System Formated!",1);
+    reboot = true;
+  }
+  else{
+    Log("Reset Failed!!",0);
+  }
+  delay(5000);
+}
+
+bool ICACHE_FLASH_ATTR config_updater(){
+  return false;
+}
+
+void ICACHE_FLASH_ATTR test_config(){
+  Log("SYSTEM TESTING");
+  Serial.println("---------------------------------SYSTEM CONFIG TESTING----------------------");
+  StaticJsonBuffer<256> json_buffer;
+  if(LittleFS.exists("system.json")){
+    Serial.println("system config file found");
+    File system_file = LittleFS.open("system.json","r");
+    Serial.println(system_file);
+    JsonObject& json_system = json_buffer.parse(system_file);
+    json_system.printTo(Serial);
+    Serial.println();
+    system_file.close();
+
+  }
+  if(LittleFS.exists("network.json")){
+    Serial.println("Network config available");
+    File network_file = LittleFS.open("network.json", "r");
+    Serial.println(network_file);
+    JsonObject& json_network = json_buffer.parse(network_file);
+    json_network.printTo(Serial);
+    Serial.println();
+    network_file.close();
+  }
+  Serial.println("---------------------------DONE SYSTEM TESTING-----------------------");
+}
+
+void ICACHE_FLASH_ATTR http_data_sender(String data = "", String method = "get"){
+  String server_path = "http://"+String(controller_host)+"/"+sensor_update_path;
+  WiFiClient wifi_client;
+  HTTPClient http;
+  String url = (method == "get") ? server_path + data : server_path;
+  http.begin(wifi_client, url.c_str());
+  int http_response_code = 0;
+  if(method == "get"){
+    http_response_code = http.GET();
+  }else if(method == "post"){
+    http_response_code = http.POST(data);
+  }
+  if(http_response_code>0) {
+    Serial.print("HTTP Respose code : ");
+    Serial.println(http_response_code);
+    String payload = http.getString();
+    Serial.println(payload);
+  }
+  else{
+    Serial.print("HTTP Error code: ");
+    Serial.println(http_response_code);
+  }
+  http.end();
+}

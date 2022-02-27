@@ -2,59 +2,68 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <ESP8266mDNS.h>
+
+#include <WiFiClient.h>
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
+// #include <WiFiClientSecureBearSSL.h>
+
 #include <LittleFS.h>
-#include <PubSubClient.h>
-// #include "DHT.h"
+
 #include <PZEM004Tv30.h>
 #include <Wire.h>
-// #include "Adafruit_SHTC3.h"
-
-
+#include "SparkFun_SHTC3.h"
 
 #include "config.esp"
 //---------------------------------SYSTEM VARIABLES---------------------------------------
 unsigned long uptime = 0;
+//system stat
 bool reboot = false;
 bool reset = false;
+bool reconfig = false;
 bool config = false;
+bool debug = true;
+bool updating = false;
+
 char *token = TOKEN;
 char *device_name;
 char *device_id;
-bool debug = true;
 int status_pin = STATUS_PIN;
-bool updating = false;
-String update_url;
+
+String update_url;                                //firmware update source
+
+String server_token = SERVER_TOKEN;
+String server_host = SERVER_HOST;
+// char *server_finger_print = SERVER_FINGERPRINT;
+// String sensor_update_path = SENSOR_UPDATE_PATH;
+
 
 //---------------------------------SENSOR VARIABLES---------------------------------------
 bool sensor_ac_status = false;
 bool sensor_ac_command = false;
-unsigned long sensor_last_update = 0;
-unsigned long sensor_interval_update = SENSOR_UPDATE_INTERVAL;
-unsigned long sensor_data_sender_interval = SENSOR_UPDATE_INTERVAL;
+float sensor_room_temp;
+float sensor_room_humid;
+float sensor_listrik_voltage;
+float sensor_listrik_power;
+float sensor_listrik_current;
+float sensor_listrik_pf;
+float sensor_listrik_freq;
+
+
 
 
 //---------------------------------NETWORK VARIABLES--------------------------------------
-// char* wifi_cl_ssid = "wireless@umsida.ac.id";
-// char* wifi_cl_pass = "AhmadDahlan1868";
-// char* wifi_ap_ssid = "Almost Smart";
-// char* wifi_ap_pass = NULL;
+
 char* wifi_ssid = WIFI_SSID;
 char* wifi_pass = WIFI_PASS;
-// char* wifi_mode = "c";
 bool wifi_mode = WIFI_MODE;
 bool net_status = false;
 
 //---------------------------------CONTROLLER VARIABLES-----------------------------------
-char *controller_token;
-char *controller_host;
-char *sensor_update_path;
-
-unsigned long controller_last_update = 0;
 
 //---------------------------------MQTT VARIABLES-----------------------------------------
 // char *mqtt_broker_ip;
@@ -74,14 +83,15 @@ unsigned long controller_last_update = 0;
 
 //---------------------------------SETUP LIBRARY--------------------------------------------
 AsyncWebServer server(HTTP_PORT);
-AsyncWebSocket ws(WEBSOCKET_PATH);
 
+WiFiClient wifi_client;
+// WiFiClientSecure secure_wifi_client;
+ESP8266WiFiMulti WiFiMulti;
 
 #include "helper.esp"
-#include "ota_update.esp"
-#include "sensor.esp"
-#include "system.esp"
 #include "networks.esp"
+#include "system.esp"
+#include "sensor.esp"
 #include "webserver.esp"
 
 void ICACHE_FLASH_ATTR setup(){
@@ -91,9 +101,6 @@ void ICACHE_FLASH_ATTR setup(){
 
   //sensor initialize
   sensor_setup();
-
-  // dht.begin();
-
 
 //start file system
   if(!LittleFS.begin()){
@@ -114,6 +121,7 @@ void ICACHE_FLASH_ATTR setup(){
   // generate device id and device name
   device_id = strdup(gen_device_id().c_str());
   device_name = strdup(gen_device_name().c_str());
+  test_config();
   //load configuration
   bool sts_sys_conf = true;// for debuging remove after finish
   bool sts_net_conf = true;//same
@@ -122,27 +130,28 @@ void ICACHE_FLASH_ATTR setup(){
   //print device info
   Log("Device id = " + String(device_id),2);
   Log("Device name = " + String(device_name),2);
+  
   //check if configuration is success
-  if(sts_sys_conf){
+  if(sts_sys_conf && sts_net_conf){
     config = true;
     //check if network configuration is success then start network
-    if(sts_net_conf){
-      net_status = wifi_begin();
+    if(wifi_mode){
+      if(!wifi_cl_connect(wifi_ssid,wifi_pass)){
+        wifi_ap_setup(); //start failsafe ap connection
+      }
     }
     else{
-      // if configuration failed or did't exist start AP
-      wifi_ap_setup(device_name, WIFI_FAIL_PASS);
+      wifi_ap_setup(wifi_ssid,wifi_pass);
     }
+    webserver();
   }
-  // start web server
-  webserver();
-  if(config && net_status){
-
+  else{
+    // default setup or fail safe configuration
   }
-  test_config();
 }
 
 void IRAM_ATTR loop(){
+  net_status = (WiFiMulti.run() == WL_CONNECTED) ? true : false;
   //get system clock and uptime
   uptime = millis();
   //reboot the system if required
@@ -154,19 +163,15 @@ void IRAM_ATTR loop(){
     ESP.restart();
   }
 
+  if(reconfig){
+    Log("Updating config");
+    reconfig = false;
+  }
+
+  system_loop();
   if(config){
-    //update sensor data
-    update_sensor_ac();
-    ac_controller();
-    if(uptime - sensor_last_update >= sensor_interval_update){
-      Log("updating sensor");
-      update_sensor();
-      //send sensor data to server
-      if(net_status){
-        sensor_data_sender();
-      }
-      sensor_last_update = uptime;
-    }
+    wifi_loop();
+    sensor_loop();
   }
   if(updating){
     do_update();
@@ -175,4 +180,5 @@ void IRAM_ATTR loop(){
     //keep the system alive
     breathe();
   }
+
 }

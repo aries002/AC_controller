@@ -1,0 +1,34 @@
+#include <Arduino.h>
+
+#include <ESP8266HTTPClient.h>
+#include <ESP8266WiFi.h>
+#define CONTROLLER_CALL_INTERVAL 10000
+
+
+String controller_host;
+String controller_token;
+
+String controller_provision_url;
+
+
+void controller_loop();
+void controller_update();
+void controller_firmware_upgrade();
+void controller_provision();
+void controller_load_config();
+String controller_http_client();
+
+WiFiClient controller_client;
+
+unsigned long controller_time = 0;
+unsigned long controller_last_call = 0;
+void controller_loop(){
+  controller_time = millis();
+  if(controller_time - controller_last_call > CONTROLLER_CALL_INTERVAL){
+    controller_last_call = controller_time;
+  }
+}
+
+String controller_http_client(){
+  
+}

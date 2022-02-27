@@ -34,8 +34,8 @@ ppenggunaan port
 
 #define TOKEN "1234567"
 #define DEVICE_NAME "AC_Controller"
-#define CONTROLLER_HOST "192.168.1.1"
-#define CONTROLLER_TOKEN "1234567890"
+#define SERVER_HOST "192.168.1.1"
+#define SERVER_TOKEN "1234567890"
 
 //====================================WEBSOCKET CONFIGURATION=============================
 /*

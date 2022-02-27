@@ -1,5 +1,16 @@
+// #include <ESP8266WiFi.h>
+// #include <ESP8266WiFiMulti.h>
 
-bool ICACHE_FLASH_ATTR wifi_ap_setup(const char *ap_ssid = wifi_ssid, const char *ap_pass = wifi_pass){
+
+#ifndef WIFI_SSID
+WIFI_SSID "almost_smart"
+#endif
+
+#ifndef WIFI_PASS
+WIFI_PASS "1234567890"
+#endif
+
+bool ICACHE_FLASH_ATTR wifi_ap_setup(const char *ap_ssid = WIFI_SSID, const char *ap_pass = WIFI_PASS){
 
   Log("Setting up Access Point");
   bool sts = false;
@@ -20,7 +31,7 @@ bool ICACHE_FLASH_ATTR wifi_ap_setup(const char *ap_ssid = wifi_ssid, const char
   return sts;
 }
 
-bool ICACHE_FLASH_ATTR wifi_cl_connect(const char *client_ssid = wifi_ssid, const char *client_pass = wifi_pass){
+bool ICACHE_FLASH_ATTR wifi_cl_connect(const char *client_ssid = WIFI_SSID, const char *client_pass = WIFI_PASS){
   String msg;
   bool sts = false;
   msg = "Connecting to "+ String(client_ssid);
@@ -48,19 +59,14 @@ bool ICACHE_FLASH_ATTR wifi_cl_connect(const char *client_ssid = wifi_ssid, cons
   return sts;
 }
 
-bool ICACHE_FLASH_ATTR wifi_begin(){
-  bool status = false;
-  if(wifi_mode){
-    status = wifi_cl_connect();
-  }
-  else{
-    status = wifi_ap_setup();
-  }
-  // setup failsafe access point if failed to connect network
-  if(!status){
-    Log("Setting up failsafe Access Point",2);
-    wifi_ap_setup(device_name);
-  }
-  return status;
-}
 
+unsigned long last_wifi_check = 0;
+void wifi_loop(){
+  if(millis() - last_wifi_check > 5000){
+    if(!net_status && wifi_mode){
+      Log(String("Reconnecting to ")+wifi_ssid, 2);
+      WiFi.disconnect();
+      wifi_cl_connect(wifi_ssid,wifi_pass);
+    }
+  }
+}

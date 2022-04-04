@@ -18,38 +18,57 @@ ppenggunaan port
 */
 
 //=====================================SYSTEM CONFIGURATION===============================
-#define I2C_SCL 5
+#define BOARD_V3
+
+#ifdef BOARD_V1
+#define I2C_SCL 12
+#define I2C_SDA 14
+#define PZEM_RX 4
+#define PZEM_TX 5
+#define AC_POWER_PIN 0
+#define AC_STATUS_PIN 13
+#endif
+#ifdef BOARD_V3
 #define I2C_SDA 4
+#define I2C_SCL 5
 #define PZEM_RX 12
 #define PZEM_TX 14
 #define AC_POWER_PIN 0
 #define AC_STATUS_PIN 13
-#define STATUS_PIN 2
+#endif
 
-#define AC_READ_TIMEOUT 3000
-#define SENSOR_UPDATE_INTERVAL 3000
-#define CONTROLLER_UPDATE_INTERVAL 6000
-#define AC_CONTOLLLER_RUN_INTERVAL 1 //in minute
-#define AC_POWER_SIGNAL_LONG 1000
+
+
+// #define STATUS_PIN 2
+
+// #define AC_READ_TIMEOUT 3000
+// #define SENSOR_UPDATE_INTERVAL 30000
+
 
 #define TOKEN "1234567"
 #define DEVICE_NAME "AC_Controller"
-#define SERVER_HOST "192.168.1.1"
-#define SERVER_TOKEN "1234567890"
+#define SERVER_HOST "iot.umsida.ac.id"
 
-//====================================WEBSOCKET CONFIGURATION=============================
-/*
-*/
+#define SERVER_TOKEN "1f3a484b3f517c757055df4926c2922c568f6bb9"
+
+//====================================API CONFIGURATION=============================
+
 //Web socket and API port
-#define HTTP_PORT 8080
-#define API_PATH "/api"
-#define WEBSOCKET_PATH "/ws"
-#define API_ERROR_HEADER "{\"message\"="
-#define API_ERROR_FOOTER "}"
-#define API_DATA_TYPE "application/json"
+// #define HTTP_PORT 8080
+// #define API_PATH "/api"
+// #define API_DATA_TYPE "application/json"
 //=====================================NETWORK CONFIGURATION==============================
-#define WIFI_SSID "AC-Controller"
-#define WIFI_PASS "1234567890"
-#define WIFI_FAIL_PASS "1234567890"
+#define WIFI_SSID "smartcampus@umsida.ac.id"
+#define WIFI_PASS "umsida1912"
 #define WIFI_MODE false
 
+
+#define FIELD_SENSOR_SUHU 0
+#define FIELD_SENSOR_KELEMBAPAN 1
+#define FIELD_STATUS_AC 2
+#define FIELD_COMMAND_AC 3
+#define FIELD_SENSOR_TEGANGAN 4
+#define FIELD_SENSOR_ARUS 5
+#define FIELD_SENSOR_DAYA 6
+#define FIELD_SENSOR_FREKUENSI 7
+#define FIELD_SENSOR_PF 8

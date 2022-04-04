@@ -1,12 +1,19 @@
 #define PIN_POWER 0
 #define PIN_SIGNAL 13
-#define PIN_SDA 12
-#define PIN_SCL 14
+//#define PIN_SDA 12
+//#define PIN_SCL 14
+//#define PZEM_RX_PIN 4
+//#define PZEM_TX_PIN 5
+
+#define PIN_SDA 4
+#define PIN_SCL 5
+#define PZEM_RX_PIN 12
+#define PZEM_TX_PIN 14
+
 #include "SparkFun_SHTC3.h" // Click here to get the library: http://librarymanager/All#SparkFun_SHTC3
 #include <PZEM004Tv30.h>
 #include <SoftwareSerial.h>
-#define PZEM_RX_PIN 4
-#define PZEM_TX_PIN 5
+
 
 
 SoftwareSerial pzemSWSerial(PZEM_RX_PIN, PZEM_TX_PIN);

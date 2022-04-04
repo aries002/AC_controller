@@ -1,8 +1,8 @@
 // #include <PZEM004Tv30.h>
 // #include <Wire.h>
 // #include "SparkFun_SHTC3.h"
-
 bool req_signal_ac = false;
+
 
 SHTC3 room_sensor;
 SoftwareSerial pzemSWSerial(PZEM_RX, PZEM_TX);
@@ -28,39 +28,48 @@ String ICACHE_FLASH_ATTR SHTC3errorDecoder(SHTC3_Status_TypeDef message)
 
 
 
-// AC Controller function is for send power on signal 
+// AC Controller function is for send power on signal
+
+
 bool last_ac_status = false;
-bool allow_remote_power = false;
 bool server_change = false;
-#ifndef AC_CONTROLLER_CHECK_INTERVAL
-#define AC_CONTROLLER_CHECK_INTERVAL 5000
-#endif
+
 unsigned long ac_controller_last_chek = 0;
-//check and controll ac power by server stat
+unsigned long ac_controller_last_send_status = 0;
+
 void ICACHE_FLASH_ATTR ac_controller(bool signal_now = false){
   if(signal_now){
     req_signal_ac = true;
   }
-  else if(net_status){
+  else{
     float f_sensor_ac_status;
     if(sensor_ac_status){
       f_sensor_ac_status = 1;
     }else{
       f_sensor_ac_status = 0;
     }
-    iot_umsida_sender(FIELD_STATUS_AC, f_sensor_ac_status); //send status ac to server
+    if(millis() - ac_controller_last_send_status >= 5000){
+      iot_umsida_sender(FIELD_STATUS_AC, f_sensor_ac_status); //send status ac to server
+      ac_controller_last_send_status = millis();
+    }
+
     if((last_ac_status != sensor_ac_status) && allow_remote_power){ //jika kondisi ac berubah kirmkan perubahan ke server
       last_ac_status = sensor_ac_status;
+      Serial.println("AC condition change!");
       if(!server_change){
+        Serial.println("From other.");
         iot_umsida_sender(FIELD_COMMAND_AC, f_sensor_ac_status);
       }
       else{
+        Serial.println("From Server.");
         server_change = false;
       }
     }
     else{ // jika tidak ambil status dari server
       if(millis() - ac_controller_last_chek > AC_CONTROLLER_CHECK_INTERVAL){
         String result = iot_umsida_get(FIELD_COMMAND_AC);
+        Serial.print("AC Command : ");
+        Serial.println(result);
         if ((result == "1" || result == "1.0")&& !sensor_ac_status){
           req_signal_ac = true;
           server_change = true;
@@ -69,14 +78,14 @@ void ICACHE_FLASH_ATTR ac_controller(bool signal_now = false){
           req_signal_ac = true;
           server_change = true;
         }
+        ac_controller_last_chek = millis();
       }
     }
   }
 }
 
-#ifndef AC_READ_TIMEOUT
-AC_READ_TIMEOUT 4000
-#endif
+
+
 unsigned int ac_read_timer = 0;
 unsigned long sensor_ac_last_update = 0;
 //read AC status from led ping 
@@ -119,20 +128,22 @@ void ICACHE_FLASH_ATTR update_sensor(){
   float tmp_sensor_arus = pzem.current();
   float tmp_sensor_daya = pzem.power();
   float tmp_sensor_pf = pzem.pf();
+  float tmp_sensor_kwh = pzem.energy();
 
-  if(isnan(tmp_sensor_tegangan) || isnan(tmp_sensor_arus) || isnan(tmp_sensor_daya) || isnan(tmp_sensor_pf)){
+  if(isnan(tmp_sensor_tegangan) || isnan(tmp_sensor_arus) || isnan(tmp_sensor_daya) || isnan(tmp_sensor_pf) || isnan(tmp_sensor_kwh)){
     Log("Kesalahan membaca sensor listrik",1);
   }else{
     sensor_listrik_voltage = tmp_sensor_tegangan;
     sensor_listrik_current = tmp_sensor_arus;
     sensor_listrik_power = tmp_sensor_daya;
     sensor_listrik_pf = tmp_sensor_pf;
+    sensor_listrik_kwh = tmp_sensor_kwh;
   }
 }
 
 
 //create json formated data from sensor
-String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name = "all", bool update_now = false){
+String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name = "all", bool update_now = true){
   String data;
   if(update_now){
     update_sensor();
@@ -152,6 +163,7 @@ String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name = "all", bool update
     root["daya"] = sensor_listrik_power;
     root["pf"] = sensor_listrik_pf;
     root["frekuensi"] = sensor_listrik_freq;
+    root["kwh"] = sensor_listrik_kwh;
     root["status"] = "ok";
     // Log("Test 2");
   }
@@ -163,6 +175,7 @@ String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name = "all", bool update
     electric["daya"] = sensor_listrik_power;
     electric["frekuensi"] = sensor_listrik_freq;
     electric["pf"] = sensor_listrik_pf;
+    electric["kwh"] = sensor_listrik_kwh;
     room["temperatur"] = sensor_room_temp;
     room["kelembapan"] = sensor_room_humid;
     root["listrik"] = electric;
@@ -212,7 +225,7 @@ void ICACHE_FLASH_ATTR sensor_data_sender(){
 //============================================================================================
 
 
-//setup sensor before running
+//prepare sensor before running
 void ICACHE_FLASH_ATTR sensor_setup(){
   Log("Setup sensor");
   pinMode(AC_POWER_PIN, OUTPUT);
@@ -225,16 +238,14 @@ void ICACHE_FLASH_ATTR sensor_setup(){
   }
 }
 
-#ifndef SENSOR_UPDATE_INTERVAL
-SENSOR_UPDATE_INTERVAL 5000
-#endif
-unsigned long sensor_last_send = 0;
+
 //Send data sensor to server
 unsigned long sensor_last_update = 0;
 
-
+//sensor loop process
 void sensor_loop(){
   update_sensor_ac();
+  ac_controller();
   if (req_signal_ac)
   {
     digitalWrite(AC_POWER_PIN, LOW);
@@ -243,7 +254,6 @@ void sensor_loop(){
     digitalWrite(AC_POWER_PIN, HIGH);
   }
 
-  ac_controller();
   if(millis() - sensor_last_update > SENSOR_UPDATE_INTERVAL){
     update_sensor(); //update sensor data
     sensor_data_sender(); //send sensor data

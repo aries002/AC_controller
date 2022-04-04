@@ -4,6 +4,24 @@ bool locate = false;
 // #include <ESP8266httpUpdate.h>
 // #include "helper.esp"
 
+
+// #include <ESP8266WiFi.h>
+// #include <ESP8266WiFiMulti.h>
+
+
+#ifndef WIFI_SSID
+WIFI_SSID "almost_smart"
+#endif
+
+#ifndef WIFI_PASS
+WIFI_PASS "1234567890"
+#endif
+
+// WiFiClientSecure secure_wifi_client;
+ESP8266WiFiMulti WiFiMulti;
+WiFiClient wifi_client;
+
+
 #ifndef NETWORK_CONFIG_FILE_NAME
 #define NETWORK_CONFIG_FILE_NAME "/networks.json"
 #endif
@@ -17,11 +35,13 @@ bool locate = false;
 
 //load system configuration
 bool ICACHE_FLASH_ATTR config_load_system(){
-  
+
+
   if(!LittleFS.exists(SYSTEM_CONFIG_FILE)){
     Log("Controller configuration not exist");
     return false;
   }
+  bool sts = true;
   File config = LittleFS.open(SYSTEM_CONFIG_FILE,"r");
   DynamicJsonBuffer buffer;
   JsonObject& root = buffer.parseObject(config);
@@ -31,14 +51,56 @@ bool ICACHE_FLASH_ATTR config_load_system(){
   }
 
   //processing variables
-  String proc_token = root["token"];
-  token = strdup(proc_token.c_str());
-  String proc_server_host = root["server_host"];
-  server_host = strdup(proc_server_host.c_str());
-  String proc_server_token = root["server_token"];
-  server_token = strdup(proc_server_token.c_str());
-  Log("System configuration loaded",2);
-  return true;
+
+  //device name config
+  if(root.containsKey("device_name")){
+    String device_name = root["device_name"];
+    // device_name = strdup(tmp_device_name.c_str());
+  }
+  else{
+    Log(String("Device name configuration not found, using ")+DEVICE_NAME);
+  }
+
+  //device token config
+  if(root.containsKey("token")){
+    String proc_token = root["token"];
+    token = strdup(proc_token.c_str());
+  }
+  else{
+    Log(String("token config not found, using default token : ")+TOKEN);
+    String tmp_token = TOKEN;
+    token = strdup(tmp_token.c_str());
+  }
+
+  //important server config
+  if(root.containsKey("server_host")){
+    String proc_server_host = root["server_host"];
+    server_host = strdup(proc_server_host.c_str());
+  }
+  else{
+    Log("Config host not found!");
+    server_host = SERVER_HOST;
+    sts = false;
+  }
+  if(root.containsKey("server_token")){
+    String proc_server_token = root["server_token"];
+    server_token = strdup(proc_server_token.c_str());
+  }
+  else{
+    Log("Server token not found!");
+    server_token = SERVER_TOKEN;
+    sts = false;
+  }
+
+  //check if configuration is good
+  if(!sts){
+    Log("System configuration failed!");
+    return false;
+  }
+  else{
+    Log("System configuration loaded",2);
+    return true;
+  }
 }
 
 //load network configuration
@@ -47,6 +109,7 @@ bool ICACHE_FLASH_ATTR config_load_network(){
     Log("Network configuration not exist");
     return false;
   }
+  bool sts = true;
   File config = LittleFS.open(NETWORK_CONFIG_FILE_NAME,"r");
   // DynamicJsonDocument doc(200);
   DynamicJsonBuffer buffer;
@@ -55,20 +118,50 @@ bool ICACHE_FLASH_ATTR config_load_network(){
     Log("Error while prsing network config file.",0);
     return false;
   } 
-
-  String proc_wifi_ssid = root["wifi_ssid"];
-  wifi_ssid = strdup(proc_wifi_ssid.c_str());
-  String proc_wifi_pass = root["wifi_pass"];
-  wifi_pass = strdup(proc_wifi_pass.c_str());
-
-  if(root["wifi_mode"] == true || root["wifi_mode"] == "true"){
-    wifi_mode = true;
-  }else{
-    wifi_mode = false;
+  if(root.containsKey("wifi_ssid")){
+    String proc_wifi_ssid = root["wifi_ssid"];
+    wifi_ssid = strdup(proc_wifi_ssid.c_str());
+  }
+  else{
+    Log("Wifi configuration not found!");
+    String tmp_wifi_ssid = WIFI_SSID;
+    wifi_ssid = strdup(tmp_wifi_ssid.c_str());
+    sts = false;
   }
 
-  Log("Network configuration loaded",2);
-  return true;
+  if(root.containsKey("wifi_pass")){
+    String proc_wifi_pass = root["wifi_pass"];
+    wifi_pass = strdup(proc_wifi_pass.c_str());
+  }
+  else{
+    Log("Wifi password not found!");
+    String tmp_wifi_pass = WIFI_PASS;
+    wifi_pass = strdup(tmp_wifi_pass.c_str());
+    sts = false;
+  }
+
+  if(root.containsKey("wifi_mode")){
+    if(root["wifi_mode"] == true || root["wifi_mode"] == "true"){
+      wifi_mode = true;
+    }else{
+      wifi_mode = false;
+    }
+  }
+  else{
+    Log("Wifi mode not found!");
+    wifi_mode = WIFI_MODE;
+    sts = false;
+  }
+
+
+  if(!sts){
+    Log("Network Configuration failed!");
+    return false;
+  }
+  else{
+    Log("Network configuration success",2);
+    return true;
+  }
 }
 
 //reset configuration
@@ -83,8 +176,6 @@ void ICACHE_FLASH_ATTR reset_config(){
   }
   delay(5000);
 }
-
-
 
 
 
@@ -130,9 +221,10 @@ bool save_system_config(AsyncWebServerRequest *request){
   JsonObject& root = json_buffer.createObject();
 
   //get config variables
+  root["device_name"] = (request->hasParam("device_name", true)) ? request->getParam("device_name", true)->value() : device_name;
   root["server_token"] = (request->hasParam("server_token", true)) ? request->getParam("server_token", true)->value() : "";
   root["server_host"] = (request->hasParam("server_host", true)) ? request->getParam("server_host", true)->value() : "";
-  root["server_api_path"] = (request->hasParam("server_api_path", true)) ? request->getParam("server_api_path", true)->value() : "";
+  // root["server_api_path"] = (request->hasParam("server_api_path", true)) ? request->getParam("server_api_path", true)->value() : "";
   root["token"] = (request->hasParam("token", true)) ? request->getParam("token", true)->value() : token;
   root["controller_host"] = (request->hasParam("controller_host", true)) ? request->getParam("controller_host", true)->value() : "";
   // root["sensor_update_nterval"]
@@ -336,6 +428,74 @@ void ICACHE_FLASH_ATTR do_update(){
 #define LOCATE_FIELD 9
 #endif
 
+
+
+
+bool ICACHE_FLASH_ATTR wifi_ap_setup(const char *ap_ssid, const char *ap_pass = ""){
+
+  Log("Setting up Access Point");
+  bool sts = false;
+  WiFi.mode(WIFI_AP);
+  if (ap_pass != NULL && ap_pass != ""){
+    sts = WiFi.softAP(ap_ssid, ap_pass);
+    Log("WiFi AP password " + String(ap_pass),2);
+  }
+  else{
+    sts = WiFi.softAP(ap_ssid);
+  }
+
+  if(!sts){
+    Log("Failed to setup ssid",0);
+  }
+  else{
+    Log("AP setup success",2);
+  }
+  return sts;
+}
+
+bool ICACHE_FLASH_ATTR wifi_cl_connect(const char *client_ssid, const char *client_pass = ""){
+  String msg;
+  bool sts = false;
+  msg = "Connecting to "+ String(client_ssid);
+  Log(msg,3);
+  
+  WiFi.mode(WIFI_STA);
+  if(client_pass != NULL && client_pass != ""){
+    WiFi.begin(client_ssid, client_pass);
+  }
+  else{
+    WiFi.begin(client_ssid);
+  }
+
+  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Log("WiFi connection timeout", 2);
+    sts =  false;
+  }
+  else{
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    Log("WiFi connected!");
+    Log("", 11);
+    sts = true;
+  }
+  return sts;
+}
+
+
+
+
+unsigned long last_wifi_check = 0;
+void wifi_loop(){
+  if(millis() - last_wifi_check > 5000){
+    if(!net_status && wifi_mode){
+      Log(String("Reconnecting to ")+wifi_ssid, 2);
+      WiFi.disconnect();
+      wifi_cl_connect(wifi_ssid,wifi_pass);
+    }
+  }
+}
+
+//system loop function
 
 unsigned long last_locate_loop = 0;
 unsigned long last_locate_check = 0;

@@ -1,8 +1,6 @@
-#ifndef API_DATA_TYPE
-API_DATA_TYPE "application/json"
-#endif
+#include "http_page.h"
 
-
+AsyncWebServer server(HTTP_PORT);
 
 // bool ICACHE_FLASH_ATTR check_token(AsyncWebServerRequest *request);
 // char *api_data_type = API_DATA_TYPE;
@@ -79,206 +77,6 @@ void ICACHE_FLASH_ATTR handleRestart(AsyncWebServerRequest *request){
 //=====================================CONFIGURATION HANDLER==================================
 //============================================================================================
 
-//network configuration API
-//location /api?p=config_network
-//require auth
-//configuration variable
-//"wifi_mode" -> "true"/"false" if true device set to client mode
-//"wifi_ssid" -> "ssid" wifi ssid or name of wifi AP
-//"wifi_pass" -> "password" wifi key or wifi password of the wifi AP
-// bool ICACHE_FLASH_ATTR config_network(AsyncWebServerRequest *request){
-//   String msg = "ok";
-//   bool config_ok = true;
-//   DynamicJsonBuffer json_buffer;
-//   JsonObject& root = json_buffer.createObject();
-//   JsonObject& json_msg = json_buffer.createObject();
-//   json_msg["status"] = "ok";
-//   json_msg["sts"] = 0;
-//   //get data from request
-//   String tmp_wifi_mode = (request->hasParam("wifi_mode", true)) ? request->getParam("wifi_mode", true)->value() : "false";
-//   root["wifi_ssid"] = (request->hasParam("wifi_ssid", true)) ? request->getParam("wifi_ssid", true)->value() : wifi_ssid;
-//   root["wifi_pass"] = (request->hasParam("wifi_pass", true)) ? request->getParam("wifi_pass", true)->value() : wifi_pass;
-
-//   //checking config
-//   if(tmp_wifi_mode == "true"){
-//     root["wifi_mode"] = true;
-//   }else{
-//     root["wifi_mode"] = false;
-//   }
-//   //
-//   if(root["wifi_ap_ssid"] == "" || root["wifi_ap_ssid"] == NULL){
-//     msg = "Wifi Config invalid";
-//     json_msg["status"] = "error";
-//     json_msg["sts"] = 1;
-//     json_msg["message"] = msg;
-//     config_ok = false;
-//   }
-
-//   Log(msg, 2);
-//   //save config
-//   if(config_ok){
-//     if(LittleFS.exists("networks.json")){
-//       LittleFS.remove("networks.json");
-//       Log("networks.json removed");
-//     }
-//     File config_file = LittleFS.open("networks.json", "w");
-//     if(!root.printTo(config_file)){
-//       msg = "Failed to save network configuration"; 
-//       json_msg["status"] = "error";
-//       json_msg["sts"] = 1;
-//       json_msg["message"] = msg;
-//       Log(msg, 1);
-//     }
-//     config_file.close();
-//   }
-//   else{
-//     String temporary;
-//     root.printTo(temporary);
-//     msg += temporary;
-//   }
-//   json_msg.printTo(msg);
-//   //send message
-//   request->send(200, API_DATA_TYPE, msg);
-//   return config_ok;
-// }
-
-// //system configuration API
-// //location /api?p=config_system
-// //require auth
-// //"token" -> device authentication
-// //"server_host" -> server host name or ip address
-// //"server_token" -> server authentication 
-// //"controller_host" -> device controller host
-// bool ICACHE_FLASH_ATTR config_system(AsyncWebServerRequest *request){
-//   String msg = "ok";
-//   bool config_ok = true;
-//   DynamicJsonBuffer json_buffer;
-//   JsonObject &root = json_buffer.createObject();
-//   JsonObject &json_msg = json_buffer.createObject();
-//   json_msg["sts"] = 0;
-//   json_msg["status"] = "ok";
-//   //get config from request
-//   root["server_token"] = (request->hasParam("server_token", true)) ? request->getParam("server_token", true)->value() : "";
-//   root["server_host"] = (request->hasParam("server_host", true)) ? request->getParam("server_host", true)->value() : "";
-//   root["server_api_path"] = (request->hasParam("server_api_path", true)) ? request->getParam("server_api_path", true)->value() : "";
-//   root["token"] = (request->hasParam("token", true)) ? request->getParam("token", true)->value() : token;
-//   root["controller_host"] = (request->hasParam("controller_host", true)) ? request->getParam("controller_host", true)->value() : "";
-//   // root["sensor_update_nterval"]
-//   //checking config
-//   if(root["server_token"] == "" || root["server_host"] == "" || root["token"] == ""){
-//     Log("System configuration failed", 2);
-//     Log("controller token or host empty!");
-//     config_ok = false;
-//     msg = "controller token or host empty";
-//     json_msg["sts"] = 1;
-//     json_msg["status"] = "error";
-//     json_msg["message"] = msg;
-//   }
-//   //saving config
-//   if(config_ok){
-//     if(LittleFS.exists("system.json")){
-//       LittleFS.remove("system.json");
-//       Log("system.json removed");
-//     }
-
-//     File config_file = LittleFS.open("system.json", "w");
-//     if(!root.printTo(config_file)){
-//       Log("Failed to save system configuration",1);
-//       msg = "config failed to save";
-//       json_msg["sts"] = 2;
-//       json_msg["status"] = "error";
-//       json_msg["message"] = msg;
-//     }
-//     config_file.close();
-//   }
-//   String ret;
-//   json_msg.printTo(ret);
-//   request->send(200, API_DATA_TYPE, ret);
-//   // reboot = true;
-//   return config_ok;
-// }
-
-//device first configuration
-//location /api?p=first_config
-//require auth
-//network and system combained variable
-
-
-// bool ICACHE_FLASH_ATTR config_first(AsyncWebServerRequest *request){
-//   String msg = "ok";
-//   bool config_ok = true;
-//   DynamicJsonBuffer json_buffer;
-//   JsonObject &network = json_buffer.createObject();
-//   JsonObject &system = json_buffer.createObject();
-//   JsonObject &json_msg = json_buffer.createObject();
-//   //-----------------------NETWORK CNFIG--------------------------
-//   //get config
-//   String tmp_wifi_mode = (request->hasParam("wifi_mode", true)) ? request->getParam("wifi_mode", true)->value() : "false";
-//   String tmp_wifi_ssid = (request->hasParam("wifi_ssid", true)) ? request->getParam("wifi_ssid", true)->value() : wifi_ssid;
-//   String tmp_wifi_pass = (request->hasParam("wifi_pass", true)) ? request->getParam("wifi_pass", true)->value() : wifi_pass;
-
-//   //checking config
-//   if(tmp_wifi_mode == "true"){
-//     network["wifi_mode"] = true;
-//   }else{
-//     network["wifi_mode"] = false;
-//   }
-//   //
-//   if(tmp_wifi_ssid == ""){
-//     msg = "Wifi Config invalid";
-//     Log(msg,2);
-//     json_msg["status"] = "error";
-//     json_msg["sts"] = 1;
-//     json_msg["message"] = msg;
-//     config_ok = false;
-//   }
-
-//   //-------------------------------SYSTEM CONFIG---------------------------------------
-//   // system["server_token"]
-//   String tmp_server_token = (request->hasParam("server_token", true)) ? request->getParam("server_token", true)->value() : "";
-//   String tmp_server_host = (request->hasParam("server_host", true)) ? request->getParam("server_host", true)->value() : "";
-//   system["token"] = (request->hasParam("token", true)) ? request->getParam("token", true)->value() : token;
-//   //checking config
-//   if(tmp_server_token == "" || tmp_server_host == ""){
-//     msg = "controller config invalid";
-//     json_msg["status"] = "error";
-//     json_msg["sts"] = 1;
-//     json_msg["message"] = msg;
-//     Log(msg,2);
-//   }
-
-//   //save config and restart
-//   if(config_ok){
-//     system["server_token"] = tmp_server_token;
-//     system["server_host"] = tmp_server_host;
-//     network["wifi_ssid"] = tmp_wifi_ssid;
-//     network["wifi_pass"] = tmp_wifi_pass;
-//     // network.prettyPrintTo(Serial);
-//     // system.prettyPrintTo(Serial);
-//     File config_file = LittleFS.open("system.json", "w");
-//     if(!system.printTo(config_file)){
-//       msg = "failed saving network config";
-//       json_msg["status"] = "error";
-//       json_msg["sts"] = 1;
-//       json_msg["message"] = msg;
-//       Log(msg,1);
-//     }
-//     File net_config_file = LittleFS.open("network.json", "w");
-//     if(!network.printTo(net_config_file)){
-//       msg = "failed saving network config";
-//       json_msg["status"] = "error";
-//       json_msg["sts"] = 1;
-//       json_msg["message"] = msg;
-//       Log(msg,1);
-//     }
-//     config_file.close();
-//     net_config_file.close();
-//   }
-//   json_msg.printTo(msg);
-//   request->send(200, API_DATA_TYPE, msg);
-//   return config_ok;
-// }
-
 void handle_system_config(AsyncWebServerRequest *request){
   bool sts_config = save_system_config(request);
   if(sts_config){
@@ -303,6 +101,25 @@ void handle_first_config(AsyncWebServerRequest *request){
   bool sts_net_conf = save_network_config(request);
   bool sts_sys_conf = save_system_config(request);
   if(sts_net_conf && sts_sys_conf){
+    request->send(200, "text/html", "DEVICE SUCCESSFULLY CONFIGURED");
+    reboot = true;
+  }
+  else if(!sts_net_conf){
+    request->redirect("/");
+    Log("Net config error");
+    // request->send(200, API_DATA_TYPE, "{'status' : 'net_error'}");
+  }
+  else if(!sts_sys_conf){
+    request->redirect("/");
+    Log("Sys config error");
+    // request->send(200, API_DATA_TYPE, "{'status' : 'sys_error'}");
+  }
+}
+
+void handle_first_config_api(AsyncWebServerRequest *request){
+  bool sts_net_conf = save_network_config(request);
+  bool sts_sys_conf = save_system_config(request);
+  if(sts_net_conf && sts_sys_conf){
     request->send(200, API_DATA_TYPE, "{'status' : 'ok'}");
     reboot = true;
   }
@@ -314,9 +131,9 @@ void handle_first_config(AsyncWebServerRequest *request){
   }
 }
 
-void handle_first_config_page(AsyncWebServerRequest *request){
-  request->send(200,"text/html","");
-}
+// void handle_first_config_page(AsyncWebServerRequest *request){
+//   request->send(200,"text/html","");
+// }
 
 //============================================================================================
 
@@ -334,22 +151,29 @@ void ICACHE_FLASH_ATTR api_switchPower(AsyncWebServerRequest *request){
   response["status"] = "ok";
   if(set_status == "cek"){
     response["ac_power"] = sensor_ac_status;
-    response["ac_command"] = sensor_ac_command;
+    // response["ac_command"] = sensor_ac_command;
     Log("AC status : "+String(sensor_ac_status));
 
   }
+  else if(set_status == "rubah"){
+    ac_controller(true);
+    response["status"] = "true";
+    Log("AC power change");
+  }
   else if(set_status == "up" || set_status == "nyala"){
-    sensor_ac_command = true;
-    req_signal_ac = true;
+    // sensor_ac_command = true;
+    // req_signal_ac = true;
+    ac_controller(true);
     response["ac_power"] = sensor_ac_status;
-    response["ac_command"] = sensor_ac_command;
+    // response["ac_command"] = sensor_ac_command;
     Log("AC set to up");
   }
   else if(set_status == "down" || set_status == "mati"){
-    sensor_ac_command = false;
-    req_signal_ac = true;
+    // sensor_ac_command = false;
+    // req_signal_ac = true;
+    ac_controller(true);
     response["ac_power"] = sensor_ac_status;
-    response["ac_command"] = sensor_ac_command;
+    // response["ac_command"] = sensor_ac_command;
     Log("AC set to down");
   }
   else{
@@ -470,16 +294,27 @@ void ICACHE_FLASH_ATTR webserver(){
   Log("Web server started",2);
 } 
 
+String failsafe_processor(const String& var)
+{
+  if(var == "HTTP_TITLE"){
+    String title = String("First Configuration AC Controller ")+String(device_id);
+    return title;
+  }
+  return String();
+}
+
 void ICACHE_FLASH_ATTR failsafe_webserver(){
   server.onNotFound([](AsyncWebServerRequest *request) {
 		AsyncWebServerResponse *response = request->beginResponse(404, "text/plain", "Not found");
 		request->send(response);
 	});
   server.on("/",HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/html", "Wellcome!");
+    request->send_P(200, "text/html", PAGE_FirstConfiguration, failsafe_processor);
   });
+  // server.on("/", HTTP_POST, handle_first_config);
   server.on("/update", HTTP_POST, handle_update);
   server.on("/config", HTTP_POST, handle_first_config);
+  server.on("/config_api", HTTP_POST, handle_first_config_api);
   // route_api();
   server.begin();
   Log("Web server started",2);

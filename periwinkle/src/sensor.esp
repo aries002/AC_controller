@@ -1,73 +1,97 @@
-// #include <Arduino.h>
-#include <Wire.h>
-// #include "DHT.h"
-#include <PZEM004Tv30.h>
-// #include "Adafruit_SHTC3.h"
-#include "SparkFun_SHTC3.h"
+// #include <PZEM004Tv30.h>
+// #include <Wire.h>
+// #include "SparkFun_SHTC3.h"
+bool req_signal_ac = false;
 
-float sensor_room_temp;
-float sensor_room_humid;
-float sensor_listrik_voltage;
-float sensor_listrik_power;
-float sensor_listrik_current;
-float sensor_listrik_pf;
-float sensor_listrik_freq;
-
-unsigned int ac_read_timer = 0;
 
 SHTC3 room_sensor;
-// Adafruit_SHTC3 room_sensor = Adafruit_SHTC3();
-// DHT dht(DHT_PIN, DHT_TYPE)
 SoftwareSerial pzemSWSerial(PZEM_RX, PZEM_TX);
 PZEM004Tv30 pzem;
 
-void update_sensor_listrik();
-void SHTC3errorDecoder(SHTC3_Status_TypeDef message);
-
-void ICACHE_FLASH_ATTR SHTC3errorDecoder(SHTC3_Status_TypeDef message)
+//Decode SHTC3 sensor error
+String ICACHE_FLASH_ATTR SHTC3errorDecoder(SHTC3_Status_TypeDef message)
 {
+  String ret;
   switch(message)
   {
-    case SHTC3_Status_Nominal : Serial.print("Nominal"); break;
-    case SHTC3_Status_Error : Serial.print("Error"); break;
-    case SHTC3_Status_CRC_Fail : Serial.print("CRC Fail"); break;
-    default : Serial.print("Unknown return code"); break;
+    case SHTC3_Status_Nominal : ret = "Nominal"; break;
+    case SHTC3_Status_Error : ret = "Error"; break;
+    case SHTC3_Status_CRC_Fail : ret = "CRC Fail"; break;
+    default : ret = "Unknown return code"; break;
   }
+  return ret;
 }
 
-/*
-AC Controller function is for send power signal 
-*/
-unsigned long ac_controller_last_run = 0;
-unsigned long ac_controller_run_interval = 0;
+//============================================================================================
+//==================================AC CONTROLLER AND MONITOR=================================
+//============================================================================================
+
+
+
+// AC Controller function is for send power on signal
+
+
+bool last_ac_status = false;
+bool server_change = false;
+
+unsigned long ac_controller_last_chek = 0;
+unsigned long ac_controller_last_send_status = 0;
+
 void ICACHE_FLASH_ATTR ac_controller(bool signal_now = false){
-  if(uptime - ac_controller_last_run >= ac_controller_run_interval){
-    ac_controller_last_run = uptime;
-    if(sensor_ac_status != sensor_ac_command){
-      digitalWrite(AC_POWER_PIN, HIGH);
-      delay(AC_POWER_SIGNAL_LONG);
-      digitalWrite(AC_POWER_PIN, LOW);
-    }
+  if(signal_now){
+    req_signal_ac = true;
   }
-  else if(signal_now){
-    // flip the command immidietly
-    if(sensor_ac_command){
-      sensor_ac_command = false;
+  else{
+    float f_sensor_ac_status;
+    if(sensor_ac_status){
+      f_sensor_ac_status = 1;
     }else{
-      sensor_ac_command = true;
+      f_sensor_ac_status = 0;
     }
-    // send the signal
-    digitalWrite(AC_POWER_PIN, HIGH);
-    delay(AC_POWER_SIGNAL_LONG);
-    digitalWrite(AC_POWER_PIN, LOW);
+    if(millis() - ac_controller_last_send_status >= 5000){
+      iot_umsida_sender(FIELD_STATUS_AC, f_sensor_ac_status); //send status ac to server
+      ac_controller_last_send_status = millis();
+    }
+
+    if((last_ac_status != sensor_ac_status) && allow_remote_power){ //jika kondisi ac berubah kirmkan perubahan ke server
+      last_ac_status = sensor_ac_status;
+      Serial.println("AC condition change!");
+      if(!server_change){
+        Serial.println("From other.");
+        iot_umsida_sender(FIELD_COMMAND_AC, f_sensor_ac_status);
+      }
+      else{
+        Serial.println("From Server.");
+        server_change = false;
+      }
+    }
+    else{ // jika tidak ambil status dari server
+      if(millis() - ac_controller_last_chek > AC_CONTROLLER_CHECK_INTERVAL){
+        String result = iot_umsida_get(FIELD_COMMAND_AC);
+        Serial.print("AC Command : ");
+        Serial.println(result);
+        if ((result == "1" || result == "1.0")&& !sensor_ac_status){
+          req_signal_ac = true;
+          server_change = true;
+        }
+        else if ((result == "0" || result == "0.0") && sensor_ac_status){
+          req_signal_ac = true;
+          server_change = true;
+        }
+        ac_controller_last_chek = millis();
+      }
+    }
   }
 }
 
+
+
+unsigned int ac_read_timer = 0;
 unsigned long sensor_ac_last_update = 0;
-//read AC status its
-void IRAM_ATTR update_sensor_ac(){
+//read AC status from led ping 
+void ICACHE_FLASH_ATTR update_sensor_ac(){
   bool sts = digitalRead(AC_STATUS_PIN);
-  if(uptime - sensor_ac_last_update >= 200){
+  if(millis() - sensor_ac_last_update >= 200){
     if(sts){
       ac_read_timer = 0;
       sensor_ac_status = true;
@@ -80,153 +104,46 @@ void IRAM_ATTR update_sensor_ac(){
     }
   }
 }
+//============================================================================================
 
 
-//read room hummidity
-float IRAM_ATTR read_room_temp(){
-  float hasil = 0.0;
+//============================================================================================
+//============================================================================================
+//============================================================================================
+
+//updating sensor data
+void ICACHE_FLASH_ATTR update_sensor(){
+  Log("Updating sensor value");
+  SHTC3_Status_TypeDef result = room_sensor.update();
   if(room_sensor.lastStatus == SHTC3_Status_Nominal){
-    hasil = room_sensor.toDegC();
+    sensor_room_temp = room_sensor.toDegC();
+    sensor_room_humid = room_sensor.toPercent();
+  }
+  else{
+    Log("Kesalahan mengukur suhu.",1);
+    Log(SHTC3errorDecoder(result),1);
+  }
+
+  float tmp_sensor_tegangan = pzem.voltage();
+  float tmp_sensor_arus = pzem.current();
+  float tmp_sensor_daya = pzem.power();
+  float tmp_sensor_pf = pzem.pf();
+  float tmp_sensor_kwh = pzem.energy();
+
+  if(isnan(tmp_sensor_tegangan) || isnan(tmp_sensor_arus) || isnan(tmp_sensor_daya) || isnan(tmp_sensor_pf) || isnan(tmp_sensor_kwh)){
+    Log("Kesalahan membaca sensor listrik",1);
   }else{
-    Log("Kesalahan mengukur suhu",1);
-    SHTC3errorDecoder(room_sensor.lastStatus);
-    hasil = 0.0;
-  }
-  // hasil = dht.readTemperature();
-  // Log("temp : "+String(hasil));
-  return hasil;
-}
-
-//read room temperature
-float IRAM_ATTR read_room_humid(){
-  float hasil = 0.0;
-  if(room_sensor.lastStatus == SHTC3_Status_Nominal){
-    hasil = room_sensor.toPercent();
-  }else{
-    Log("Kesalahan mengukur kelembapan",1);
-    SHTC3errorDecoder(room_sensor.lastStatus);
-    hasil = 0.0;
-  }
-  // Log("Humidity : "+String(hasil));
-  return hasil;
-}
-
-//get power line voltage
-float IRAM_ATTR read_pzem_voltage(){
-  // Log("Reading Voltage");
-  float hasil = pzem.voltage();
-  if(isnan(hasil)){
-    Log("Kesalahan membaca tegangan", 1);
-    return 0.0;
-  }else{
-    return hasil;
-  }
-}
-
-//get electric current
-float IRAM_ATTR read_pzem_current(){
-  float hasil = pzem.current();
-  if(isnan(hasil)){
-    Log("Kesalahan membaca arus", 1);
-    return 0.0;
-  }else{
-    return hasil;
-  }
-}
-
-//get true power from AC
-float IRAM_ATTR read_pzem_power(){
-  float hasil = pzem.power();
-  if(isnan(hasil)){
-    Log("Kesalahan membaca daya", 1);
-    return 0.0;
-  }else{
-    return hasil;
-  }
-}
-
-//get power line frequency
-float IRAM_ATTR read_pzem_frequency(){
-  float hasil = pzem.frequency();
-  if(isnan(hasil)){
-    Log("Kesalahan membaca frequensi", 1);
-    return 0.0;
-  }else{
-    return hasil;
-  }
-}
-
-//get power factor of power line
-float IRAM_ATTR read_pzem_pf(){
-  float hasil = pzem.pf();
-  if(isnan(hasil)){
-    Log("Kesalahan membaca power factor", 1);
-    return 0.0;
-  }else{
-    return hasil;
-  }
-}
-
-void ICACHE_FLASH_ATTR sensor_setup(){
-  Log("Setup sensor");
-  pinMode(AC_POWER_PIN, OUTPUT);
-  pinMode(AC_STATUS_PIN, INPUT);
-  Wire.begin();
-  pzem = PZEM004Tv30(pzemSWSerial);
-  ac_controller_run_interval = AC_CONTOLLLER_RUN_INTERVAL * 60 * 1000;
-  if(!room_sensor.begin()){
-    Log("Sensor SHTC gagal dimuat",1);
+    sensor_listrik_voltage = tmp_sensor_tegangan;
+    sensor_listrik_current = tmp_sensor_arus;
+    sensor_listrik_power = tmp_sensor_daya;
+    sensor_listrik_pf = tmp_sensor_pf;
+    sensor_listrik_kwh = tmp_sensor_kwh;
   }
 }
 
 
-void IRAM_ATTR update_sensor(){
-    SHTC3_Status_TypeDef result = room_sensor.update();
-    sensor_room_humid = read_room_humid();
-    sensor_room_temp = read_room_temp();
-    sensor_listrik_voltage = read_pzem_voltage();
-    sensor_listrik_power = read_pzem_power();
-    sensor_listrik_current = read_pzem_current();
-    sensor_listrik_freq = read_pzem_frequency();
-    sensor_listrik_pf = read_pzem_pf();
-}
-// String serverName = "http://192.168.1.106:1880/update-sensor";
-
-//Send data sensor to server
-void ICACHE_FLASH_ATTR sensor_data_sender(){
-  String server_path = "http://"+String(controller_host)+"/"+sensor_updater_path;
-  WiFiClient wifi_client;
-  HTTPClient http;
-
-  //data sensor yang dikirim
-  String data_sensor = "?";
-  data_sensor += "temperatur="+String(sensor_room_temp)+"&";
-  data_sensor += "kelembapan="+String(sensor_room_humid)+"&";
-  data_sensor += "listrik_volt="+String(sensor_listrik_voltage)+"&";
-  data_sensor += "listrik_amp="+String(sensor_listrik_current)+"&";
-  data_sensor += "status_ac"+String(sensor_ac_status);
-
-  String serverPath = server_path + data_sensor;
-  
-  //send data
-  http.begin(wifi_client, serverPath.c_str());
-  int httpResponseCode = http.GET();
-  if (httpResponseCode>0) {
-    Serial.print("HTTP Response code: ");
-    Serial.println(httpResponseCode);
-    String payload = http.getString();
-    Serial.println(payload);
-  }
-  else {
-    Serial.print("Error code: ");
-    Serial.println(httpResponseCode);
-  }
-  // Free resources
-  http.end();
-
-}
-
-String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name, bool update_now = false){
+//create json formated data from sensor
+String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name = "all", bool update_now = true){
   String data;
   if(update_now){
     update_sensor();
@@ -246,6 +163,7 @@ String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name, bool update_now = f
     root["daya"] = sensor_listrik_power;
     root["pf"] = sensor_listrik_pf;
     root["frekuensi"] = sensor_listrik_freq;
+    root["kwh"] = sensor_listrik_kwh;
     root["status"] = "ok";
     // Log("Test 2");
   }
@@ -257,6 +175,7 @@ String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name, bool update_now = f
     electric["daya"] = sensor_listrik_power;
     electric["frekuensi"] = sensor_listrik_freq;
     electric["pf"] = sensor_listrik_pf;
+    electric["kwh"] = sensor_listrik_kwh;
     room["temperatur"] = sensor_room_temp;
     room["kelembapan"] = sensor_room_humid;
     root["listrik"] = electric;
@@ -272,3 +191,74 @@ String ICACHE_FLASH_ATTR get_sensor_json(String sensor_name, bool update_now = f
   // return root;
   return data;
 }
+//============================================================================================
+
+
+//============================================================================================
+//============================================================================================
+//============================================================================================
+
+//send sensor data to server
+void ICACHE_FLASH_ATTR sensor_data_sender(){
+  if (net_status) {
+      //sensor suhu
+      iot_umsida_sender(FIELD_SENSOR_SUHU, sensor_room_temp);
+      //sensor kelembapan
+      iot_umsida_sender(FIELD_SENSOR_KELEMBAPAN, sensor_room_humid);
+      //sensor tegangan listrik
+      iot_umsida_sender(FIELD_SENSOR_TEGANGAN, sensor_listrik_voltage);
+      //sensor arus listrik
+      iot_umsida_sender(FIELD_SENSOR_ARUS, sensor_listrik_current);
+      //sensor daya
+      iot_umsida_sender(FIELD_SENSOR_DAYA, sensor_listrik_power);
+      // http_data_sender(data_sensor);
+      // check ac command
+      
+  }
+}
+
+//============================================================================================
+
+
+//============================================================================================
+//============================================================================================
+//============================================================================================
+
+
+//prepare sensor before running
+void ICACHE_FLASH_ATTR sensor_setup(){
+  Log("Setup sensor");
+  pinMode(AC_POWER_PIN, OUTPUT);
+  pinMode(AC_STATUS_PIN, INPUT);
+  digitalWrite(AC_POWER_PIN, HIGH);
+  Wire.begin(I2C_SDA,I2C_SCL);
+  pzem = PZEM004Tv30(pzemSWSerial);
+  if(!room_sensor.begin()){
+    Log("Sensor SHTC gagal dimuat",1);
+  }
+}
+
+
+//Send data sensor to server
+unsigned long sensor_last_update = 0;
+
+//sensor loop process
+void sensor_loop(){
+  update_sensor_ac();
+  ac_controller();
+  if (req_signal_ac)
+  {
+    digitalWrite(AC_POWER_PIN, LOW);
+    delay(500);
+    req_signal_ac = false;
+    digitalWrite(AC_POWER_PIN, HIGH);
+  }
+
+  if(millis() - sensor_last_update > SENSOR_UPDATE_INTERVAL){
+    update_sensor(); //update sensor data
+    sensor_data_sender(); //send sensor data
+    sensor_last_update = millis();
+  }
+}
+
+//============================================================================================

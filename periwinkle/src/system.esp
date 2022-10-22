@@ -1,33 +1,116 @@
+bool locate = false;
+// #include <WiFiClient.h>
+// #include <ESP8266HTTPClient.h>
+// #include <ESP8266httpUpdate.h>
+// #include "helper.esp"
 
+
+// #include <ESP8266WiFi.h>
+// #include <ESP8266WiFiMulti.h>
+
+
+#ifndef WIFI_SSID
+WIFI_SSID "almost_smart"
+#endif
+
+#ifndef WIFI_PASS
+WIFI_PASS "1234567890"
+#endif
+
+// WiFiClientSecure secure_wifi_client;
+ESP8266WiFiMulti WiFiMulti;
+WiFiClient wifi_client;
+
+
+#ifndef NETWORK_CONFIG_FILE_NAME
+#define NETWORK_CONFIG_FILE_NAME "/networks.json"
+#endif
+#ifndef SYSTEM_CONFIG_FILE
+#define SYSTEM_CONFIG_FILE "/system.json"
+#endif
+//============================================================================================
+//=======================================CONFIGURATION HANDLING===============================
+//============================================================================================
+
+
+//load system configuration
 bool ICACHE_FLASH_ATTR config_load_system(){
-  
-  if(!LittleFS.exists("/system.json")){
+
+
+  if(!LittleFS.exists(SYSTEM_CONFIG_FILE)){
     Log("Controller configuration not exist");
     return false;
   }
-  File config = LittleFS.open("/system.json","r");
+  bool sts = true;
+  File config = LittleFS.open(SYSTEM_CONFIG_FILE,"r");
   DynamicJsonBuffer buffer;
   JsonObject& root = buffer.parseObject(config);
   if(!root.success()){
     Log("Error while prsing controller config file.",0);
     return false;
   }
-  String proc_token = root["token"];
-  token = strdup(proc_token.c_str());
-  String proc_controller_host = root["controller_host"];
-  controller_host = strdup(proc_controller_host.c_str());
-  String proc_controller_token = root["controller_token"];
-  controller_token = strdup(proc_controller_token.c_str());
-  Log("System configuration loaded",2);
-  return true;
+
+  //processing variables
+
+  //device name config
+  if(root.containsKey("device_name")){
+    String device_name = root["device_name"];
+    // device_name = strdup(tmp_device_name.c_str());
+  }
+  else{
+    Log(String("Device name configuration not found, using ")+DEVICE_NAME);
+  }
+
+  //device token config
+  if(root.containsKey("token")){
+    String proc_token = root["token"];
+    token = strdup(proc_token.c_str());
+  }
+  else{
+    Log(String("token config not found, using default token : ")+TOKEN);
+    String tmp_token = TOKEN;
+    token = strdup(tmp_token.c_str());
+  }
+
+  //important server config
+  if(root.containsKey("server_host")){
+    String proc_server_host = root["server_host"];
+    server_host = strdup(proc_server_host.c_str());
+  }
+  else{
+    Log("Config host not found!");
+    server_host = SERVER_HOST;
+    sts = false;
+  }
+  if(root.containsKey("server_token")){
+    String proc_server_token = root["server_token"];
+    server_token = strdup(proc_server_token.c_str());
+  }
+  else{
+    Log("Server token not found!");
+    server_token = SERVER_TOKEN;
+    sts = false;
+  }
+
+  //check if configuration is good
+  if(!sts){
+    Log("System configuration failed!");
+    return false;
+  }
+  else{
+    Log("System configuration loaded",2);
+    return true;
+  }
 }
 
+//load network configuration
 bool ICACHE_FLASH_ATTR config_load_network(){
-  if(!LittleFS.exists("/networks.json")){
+  if(!LittleFS.exists(NETWORK_CONFIG_FILE_NAME)){
     Log("Network configuration not exist");
     return false;
   }
-  File config = LittleFS.open("/networks.json","r");
+  bool sts = true;
+  File config = LittleFS.open(NETWORK_CONFIG_FILE_NAME,"r");
   // DynamicJsonDocument doc(200);
   DynamicJsonBuffer buffer;
   JsonObject& root = buffer.parseObject(config);
@@ -35,36 +118,53 @@ bool ICACHE_FLASH_ATTR config_load_network(){
     Log("Error while prsing network config file.",0);
     return false;
   } 
-  // String proc_wifi_ap_ssid = root["wifi_ap_ssid"];
-  // wifi_ap_ssid = strdup(proc_wifi_ap_ssid.c_str());
-  // String proc_wifi_ap_pass = root["wifi_ap_pass"];
-  // wifi_ap_pass = strdup(proc_wifi_ap_pass.c_str());
-
-  String proc_wifi_ssid = root["wifi_ssid"];
-  wifi_ssid = strdup(proc_wifi_ssid.c_str());
-  String proc_wifi_pass = root["wifi_pass"];
-  wifi_pass = strdup(proc_wifi_pass.c_str());
-
-  if(root["wifi_mode"] == true || root["wifi_mode"] == "root"){
-    wifi_mode = true;
-  }else{
-    wifi_mode = false;
+  if(root.containsKey("wifi_ssid")){
+    String proc_wifi_ssid = root["wifi_ssid"];
+    wifi_ssid = strdup(proc_wifi_ssid.c_str());
   }
-  // String proc_wifi_mode = root["wifi_mode"];
-  // wifi_mode = strdup(proc_wifi_mode.c_str());
+  else{
+    Log("Wifi configuration not found!");
+    String tmp_wifi_ssid = WIFI_SSID;
+    wifi_ssid = strdup(tmp_wifi_ssid.c_str());
+    sts = false;
+  }
 
-  // String proc_wifi_ap_ssid = root["wifi_ap_ssid"];
-  // wifi_ap_ssid = strdup(proc_wifi_ap_ssid.c_str());
-  Log("Network configuration loaded",2);
-  return true;
+  if(root.containsKey("wifi_pass")){
+    String proc_wifi_pass = root["wifi_pass"];
+    wifi_pass = strdup(proc_wifi_pass.c_str());
+  }
+  else{
+    Log("Wifi password not found!");
+    String tmp_wifi_pass = WIFI_PASS;
+    wifi_pass = strdup(tmp_wifi_pass.c_str());
+    sts = false;
+  }
+
+  if(root.containsKey("wifi_mode")){
+    if(root["wifi_mode"] == true || root["wifi_mode"] == "true"){
+      wifi_mode = true;
+    }else{
+      wifi_mode = false;
+    }
+  }
+  else{
+    Log("Wifi mode not found!");
+    wifi_mode = WIFI_MODE;
+    sts = false;
+  }
+
+
+  if(!sts){
+    Log("Network Configuration failed!");
+    return false;
+  }
+  else{
+    Log("Network configuration success",2);
+    return true;
+  }
 }
 
-
-// void ICACHE_RAM_ATTR data_sender(){
-//   // StaticJsonBuffer<512> statis_json_buffer;
-//   // JsonObject root = statis_json_buffer.createObject();
-// }
-
+//reset configuration
 void ICACHE_FLASH_ATTR reset_config(){
   Log("Resetting configuration",2);
   if(LittleFS.format()){
@@ -77,12 +177,85 @@ void ICACHE_FLASH_ATTR reset_config(){
   delay(5000);
 }
 
-bool ICACHE_FLASH_ATTR config_updater(){
-  return false;
+
+
+bool save_network_config(AsyncWebServerRequest *request){
+  //check and get variables
+  DynamicJsonBuffer json_buffer;
+  JsonObject& root = json_buffer.createObject();
+  String tmp_wifi_mode = (request->hasParam("wifi_mode", true)) ? request->getParam("wifi_mode", true)->value() : "false";
+  root["wifi_ssid"] = (request->hasParam("wifi_ssid", true)) ? request->getParam("wifi_ssid", true)->value() : wifi_ssid;
+  root["wifi_pass"] = (request->hasParam("wifi_pass", true)) ? request->getParam("wifi_pass", true)->value() : wifi_pass;
+
+  //checking config
+  if(tmp_wifi_mode == "true"){
+    root["wifi_mode"] = true;
+  }else{
+    root["wifi_mode"] = false;
+  }
+  //
+  if(root["wifi_ap_ssid"] == "" || root["wifi_ap_ssid"] == NULL){
+    Log("Wifi Config invalid");
+    return false;
+  }
+  if(LittleFS.exists(NETWORK_CONFIG_FILE_NAME)){
+    LittleFS.remove(NETWORK_CONFIG_FILE_NAME);
+    Log(String(NETWORK_CONFIG_FILE_NAME)+" removed");
+  }
+  File config_file = LittleFS.open(NETWORK_CONFIG_FILE_NAME, "w");
+  if(!root.printTo(config_file)){
+    Log("Failed to write network configuration", 1);
+    config_file.close();
+    return false;
+  }
+  config_file.close();
+  return true;
 }
 
+
+
+bool save_system_config(AsyncWebServerRequest *request){
+  Log("Saving system configuration");
+  //check and get variables
+  DynamicJsonBuffer json_buffer;
+  JsonObject& root = json_buffer.createObject();
+
+  //get config variables
+  root["device_name"] = (request->hasParam("device_name", true)) ? request->getParam("device_name", true)->value() : device_name;
+  root["server_token"] = (request->hasParam("server_token", true)) ? request->getParam("server_token", true)->value() : "";
+  root["server_host"] = (request->hasParam("server_host", true)) ? request->getParam("server_host", true)->value() : "";
+  // root["server_api_path"] = (request->hasParam("server_api_path", true)) ? request->getParam("server_api_path", true)->value() : "";
+  root["token"] = (request->hasParam("token", true)) ? request->getParam("token", true)->value() : token;
+  root["controller_host"] = (request->hasParam("controller_host", true)) ? request->getParam("controller_host", true)->value() : "";
+  // root["sensor_update_nterval"]
+  //checking config
+  if(root["server_token"] == "" || root["server_host"] == "" || root["token"] == ""){
+    Log("System configuration failed", 2);
+    Log("controller token or host empty!");
+    return false;
+  }
+
+  //saving confgi file
+  if(LittleFS.exists(SYSTEM_CONFIG_FILE)){
+    LittleFS.remove(SYSTEM_CONFIG_FILE);
+    Log(String(SYSTEM_CONFIG_FILE)+" removed");
+  }
+  File config_file = LittleFS.open(SYSTEM_CONFIG_FILE, "w");
+  if(!root.printTo(config_file)){
+    Log("Failed to write system configuration", 1);
+    config_file.close();
+    return false;
+  }
+  config_file.close();
+  return true;
+}
+
+
+//testing config for debug
 void ICACHE_FLASH_ATTR test_config(){
   Log("SYSTEM TESTING");
+  Serial.println(String("Device id     = ")+String(device_id));
+  Serial.println(String("Device name   = ")+String(device_name));
   Serial.println("---------------------------------SYSTEM CONFIG TESTING----------------------");
   StaticJsonBuffer<256> json_buffer;
   if(LittleFS.exists("system.json")){
@@ -106,28 +279,252 @@ void ICACHE_FLASH_ATTR test_config(){
   }
   Serial.println("---------------------------DONE SYSTEM TESTING-----------------------");
 }
+//============================================================================================
 
-void ICACHE_FLASH_ATTR http_data_sender(String data = "", String method = "get"){
-  String server_path = "http://"+String(controller_host)+"/"+sensor_update_path;
-  WiFiClient wifi_client;
+//============================================================================================
+//=========================================IOT UMSIDA GET AND UPDATE==========================
+//============================================================================================
+
+
+void ICACHE_FLASH_ATTR iot_umsida_sender(int field, float value){
+  String result = "";
+  String host = server_host;
+  String uri = "/dev/api/";
+  uri += "key/"+server_token+"/";
+  uri += "field/"+String(field)+"/sts/"+String(value);
   HTTPClient http;
-  String url = (method == "get") ? server_path + data : server_path;
-  http.begin(wifi_client, url.c_str());
-  int http_response_code = 0;
-  if(method == "get"){
-    http_response_code = http.GET();
-  }else if(method == "post"){
-    http_response_code = http.POST(data);
-  }
-  if(http_response_code>0) {
-    Serial.print("HTTP Respose code : ");
-    Serial.println(http_response_code);
-    String payload = http.getString();
-    Serial.println(payload);
+  Serial.print("Url :  ");
+  Serial.println(uri);
+  if(http.begin(wifi_client, String(host), 8088, String(uri))){
+    int response_code = http.GET();
+    
+    if(response_code>0){
+      Serial.print("HTTP Respose code : ");
+      Serial.println(response_code);
+      result = http.getString();
+      Serial.println(result);
+    }
+    else{
+      Serial.print("HTTP Error code : ");
+      Serial.println(response_code);
+      Serial.printf("error: %s\n\n", http.errorToString(response_code).c_str());
+    }
+    
+    http.end();
   }
   else{
-    Serial.print("HTTP Error code: ");
-    Serial.println(http_response_code);
+    Log("Gagal menyambungkan ke IoT UMSIDA");
   }
-  http.end();
+}
+
+
+String iot_umsida_get(int field){
+  String result = "";
+  String host = server_host;
+  String uri = "/dev/api/";
+  uri += "key/"+server_token+"/";
+  uri += "field/"+String(field)+"/sts/";
+  HTTPClient http;
+  Serial.print("Url :  ");
+  Serial.println(uri);
+  if(http.begin(wifi_client, String(host), 8088, String(uri))){
+    int response_code = http.GET();
+    
+    if(response_code>0){
+      Serial.print("HTTP Respose code : ");
+      Serial.println(response_code);
+      String http_result = http.getString();
+      Serial.println(result);
+      DynamicJsonBuffer json_buffer;
+      JsonObject &json_result = json_buffer.parse(http_result);
+      if(json_result.success()){
+        if(json_result.containsKey("value")){
+          result = String(json_result["value"]);
+        }
+        else{
+          Log("failed to get value",2);
+          String res;
+          json_result.printTo(res);
+          Log(res,2);
+        }
+      }
+      else{
+        Log("failed to parse response");
+        Log("Response : ");
+        Log(String(http_result));
+      }
+    }
+    else{
+      Serial.print("HTTP Error code : ");
+      Serial.println(response_code);
+      Serial.printf("error: %s\n\n", http.errorToString(response_code).c_str());
+    }
+    
+    http.end();
+  }
+  else{
+    Log("Gagal menyambungkan ke IoT UMSIDA");
+  }
+  return result;
+}
+
+//============================================================================================
+
+//============================================================================================
+//==============================================SYSTEM UPGADE=================================
+//============================================================================================
+void ICACHE_FLASH_ATTR update_started() {
+  Serial.println("OTA UPDATE CALLBACK:  HTTP update process started");
+}
+
+void ICACHE_FLASH_ATTR update_finished() {
+  Serial.println("OTA UPDATE CALLBACK:  HTTP update process finished");
+}
+
+void ICACHE_FLASH_ATTR update_progress(int cur, int total) {
+  Serial.printf("OTA UPDATE CALLBACK:  HTTP update process at %d of %d bytes...\n", cur, total);
+}
+
+void ICACHE_FLASH_ATTR update_error(int err) {
+  Serial.printf("OTA UPDATE CALLBACK:  HTTP update fatal error code %d\n", err);
+}
+
+void ICACHE_FLASH_ATTR do_update(){
+  WiFiClient wifi_client;
+  // ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
+  // if(ota_server != NULL && firmware_file != NULL){}
+  // Add optional callback notifiers
+  ESPhttpUpdate.onStart(update_started);
+  ESPhttpUpdate.onEnd(update_finished);
+  ESPhttpUpdate.onProgress(update_progress);
+  ESPhttpUpdate.onError(update_error);
+  
+  t_httpUpdate_return ret = ESPhttpUpdate.update(wifi_client, update_url);
+  // Or:
+  
+  //t_httpUpdate_return ret = ESPhttpUpdate.update(client, ota_server, 80, firmware_file);
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("HTTP_UPDATE_FAILD Error (%d): %s\n", ESPhttpUpdate.getLastError(), ESPhttpUpdate.getLastErrorString().c_str());
+      updating = false;
+      break;
+
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("HTTP_UPDATE_NO_UPDATES");
+      updating = false;
+      break;
+
+    case HTTP_UPDATE_OK:
+      Serial.println("HTTP_UPDATE_OK");
+      break;
+  }
+}
+//============================================================================================
+
+#ifndef LOCATE_CHECK_INTERVAL
+#define LOCATE_CHECK_INTERVAL 5000
+#endif
+#ifndef LOCATE_FIELD
+#define LOCATE_FIELD 9
+#endif
+
+
+
+
+bool ICACHE_FLASH_ATTR wifi_ap_setup(const char *ap_ssid, const char *ap_pass = ""){
+
+  Log("Setting up Access Point");
+  bool sts = false;
+  WiFi.mode(WIFI_AP);
+  if (ap_pass != NULL && ap_pass != ""){
+    sts = WiFi.softAP(ap_ssid, ap_pass);
+    Log("WiFi AP password " + String(ap_pass),2);
+  }
+  else{
+    sts = WiFi.softAP(ap_ssid);
+  }
+
+  if(!sts){
+    Log("Failed to setup ssid",0);
+  }
+  else{
+    Log("AP setup success",2);
+  }
+  return sts;
+}
+
+bool ICACHE_FLASH_ATTR wifi_cl_connect(const char *client_ssid, const char *client_pass = ""){
+  String msg;
+  bool sts = false;
+  msg = "Connecting to "+ String(client_ssid);
+  Log(msg,3);
+  
+  WiFi.mode(WIFI_STA);
+  if(client_pass != NULL && client_pass != ""){
+    WiFi.begin(client_ssid, client_pass);
+  }
+  else{
+    WiFi.begin(client_ssid);
+  }
+
+  if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Log("WiFi connection timeout", 2);
+    sts =  false;
+  }
+  else{
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    Log("WiFi connected!");
+    Log("", 11);
+    sts = true;
+  }
+  return sts;
+}
+
+
+
+
+unsigned long last_wifi_check = 0;
+void wifi_loop(){
+  if(millis() - last_wifi_check > 5000){
+    if(!net_status && wifi_mode){
+      Log(String("Reconnecting to ")+wifi_ssid, 2);
+      WiFi.disconnect();
+      wifi_cl_connect(wifi_ssid,wifi_pass);
+    }
+  }
+}
+
+//system loop function
+
+unsigned long last_locate_loop = 0;
+unsigned long last_locate_check = 0;
+
+void system_loop(){
+  //check locator
+  if(net_status){
+    
+    if(millis() - last_locate_check > LOCATE_CHECK_INTERVAL){
+      String tmp_locate = iot_umsida_get(LOCATE_FIELD);
+      if(tmp_locate == "1"){
+        locate = true;
+      }
+      else{
+        locate = false;
+      }
+    }
+  }
+
+  //locator
+
+  if (locate)
+  {
+    if (millis() - last_locate_loop > 1000)
+    {
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(1000);
+      digitalWrite(LED_BUILTIN, LOW);
+      last_locate_loop = millis();
+    }
+  }
 }

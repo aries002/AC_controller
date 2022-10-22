@@ -8,7 +8,7 @@ int b_max_step =1020;
 //membuat efek bernafas pada LED tanpa memblokir proses apapun
 void IRAM_ATTR breathe(int led = LED_BUILTIN){
   //interval delay untuk setiap berapa kali langkah diambil
-    if(uptime - b_last_time > breath_speed){
+    if(millis() - b_last_time > breath_speed){
         if(b_sts){
             b_led_step = b_led_step - 10;
         }else{
@@ -20,7 +20,7 @@ void IRAM_ATTR breathe(int led = LED_BUILTIN){
             b_sts = true;
         }
         analogWrite(led, b_led_step);
-        b_last_time = uptime;
+        b_last_time = millis();
     }
 }
 
@@ -64,17 +64,24 @@ String ICACHE_FLASH_ATTR gen_device_id(){
     return String(ESP.getChipId(),HEX).c_str();
 }
 
+#ifndef DEVICE_NAME
+#define DEVICE_NAME "ESP"
+#endif
+
 //membuat dan memformat nama perangkat
 String ICACHE_FLASH_ATTR gen_device_name(){
-    String name;
+    // String name;
+    String tmp_device_name = DEVICE_NAME;
+    tmp_device_name += "-";
     // name += gen_device_id();
-    const char * dev_id = strdup(gen_device_id().c_str());
-    name = strcat(DEVICE_NAME"-", dev_id);
-    return name;
+    // const char * dev_id = strdup(gen_device_id().c_str());
+    tmp_device_name += gen_device_id();
+    // name = strcat(tmp_device_name, dev_id);
+    return tmp_device_name;
 }
 
-String ICACHE_FLASH_ATTR gen_mqtt_clientid(){
-    String clientId = DEVICE_NAME"-";
-    clientId += gen_device_id();
-    return clientId;
-}
+// String ICACHE_FLASH_ATTR gen_mqtt_clientid(){
+//     String clientId = DEVICE_NAME"-";
+//     clientId += gen_device_id();
+//     return clientId;
+// }
